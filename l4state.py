@@ -40,7 +40,8 @@ class L4State14(app_manager.RyuApp):
         ofp, psr, did = (dp.ofproto, dp.ofproto_parser, format(dp.id, '016d'))
         eth = pkt.get_protocols(ethernet.ethernet)[0]
 
-        #########################################################################     
+        ######################################################################### 
+          
         # initialize variables
         acts = []
         act = None
@@ -59,7 +60,7 @@ class L4State14(app_manager.RyuApp):
                 # destination ip
                 dstip = iph.dst                
                 # TCP header
-                tcph = pkt.get_protocols(tcp.tcp)[0]           
+                tcph = pkt.get_protocols(tcp.tcp)[0]
                 # source port
                 srcport = tcph.src_port
                 # destination port
