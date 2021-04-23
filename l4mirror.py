@@ -43,29 +43,25 @@ class L4Mirror14(app_manager.RyuApp):
         tcph = pkt.get_protocols(tcp.tcp)
 
         out_port = 2 if in_port == 1 else 1
-        #########################################################################     
-        # if len(pkt.get_protocols(tcp.tcp)):
-        #     tcph = pkt.get_protocols(tcp.tcp)[0]
-        #     print(tcph.has_flags(tcp.TCP_ACK))
+        #######################################################################  
         # initialize variables
         acts = []
         act = None
         srcip, dstip, srcport, dstport = (None, None, None, None)
         iph = None
         tcph = None
-        # check whether it is TCP-over-IPv4 or not
+        # add flow to the switch if check is true
         check = False
-        # check_10 = False
         # check if it is TCP-over-IPv4
         if (len(pkt.get_protocols(ipv4.ipv4)) and
             len(pkt.get_protocols(tcp.tcp))):
-
+            # IP header
             iph = pkt.get_protocols(ipv4.ipv4)[0]
             # source ip
             srcip = iph.src
             # destination ip
             dstip = iph.dst
-
+            # TCP header
             tcph = pkt.get_protocols(tcp.tcp)[0]            
             # source port
             srcport = tcph.src_port
@@ -74,44 +70,52 @@ class L4Mirror14(app_manager.RyuApp):
             # if a tuple is complete
             if srcip and dstip and srcport and dstport: 
                 # set the flow key for the controller
-                flow_key = (srcip, dstip, srcport, dstport)  
+                flow_key = (srcip, dstip, srcport, dstport)
+                # add default out_port to actions
                 act = psr.OFPActionOutput(out_port)    
-                acts.append(act)            
-                # check = True
+                acts.append(act)
+                # if in_port is 1
                 if in_port == 1:
-                    check = True                
+                    check = True
+                # if in_port is 2  
                 elif in_port == 2:
+                    # if the TCP packet with the SYN flag set 
+                    # and the ACK flag unset
                     if (tcph.has_flags(tcp.TCP_SYN) and 
-                        not tcph.has_flags(tcp.TCP_ACK)):  
+                        not tcph.has_flags(tcp.TCP_ACK)):
+                        # forward the packet to port 3 also
                         acts.append(psr.OFPActionOutput(3))    
-                        # if flow_key not in self.ht:                            
-                        self.ht[flow_key] = 1                                                    
+                        # add the flow_key to the dictionary
+                        self.ht[flow_key] = 1
                     else:
+                        # first 10 packets
                         if flow_key in self.ht:                        
                             acts.append(psr.OFPActionOutput(3))
                             self.ht[flow_key] += 1
                             if self.ht[flow_key] == 10:                      
-                                del self.ht[flow_key]      
+                                del self.ht[flow_key]
+                        # add the flow to the switch 
                         elif flow_key not in self.ht:
-                            check = True
+                            check = True                        
                         else:
                             return
+        # non-TCP-over-IPv4
         else:
             act = psr.OFPActionOutput(out_port)                                  
             acts.append(act)
 
-        print(acts)
-        
-        # if it is TCP-over-IPv4
+        # add flow to the switch 
         if check:
             # input switch port, network layer protocol, source IP address,
-            # destination IP address, transport layer protocol, source port and destination port
-            mtc = psr.OFPMatch(in_port=in_port, eth_type=eth.ethertype, ipv4_src=srcip,
-                ipv4_dst=dstip, ip_proto=iph.proto, tcp_src=srcport, tcp_dst=dstport)
+            # destination IP address, transport layer protocol, source port
+            # and destination port
+            mtc = psr.OFPMatch(in_port=in_port, eth_type=eth.ethertype, 
+                ipv4_src=srcip, ipv4_dst=dstip, ip_proto=iph.proto, 
+                tcp_src=srcport, tcp_dst=dstport)
             self.add_flow(dp, 1, mtc, acts, msg.buffer_id)
             if msg.buffer_id != ofp.OFP_NO_BUFFER:
                 return
-        #########################################################################
+        #######################################################################
 
         data = msg.data if msg.buffer_id == ofp.OFP_NO_BUFFER else None
         out = psr.OFPPacketOut(datapath=dp, buffer_id=msg.buffer_id,
